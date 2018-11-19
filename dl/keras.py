@@ -1,5 +1,5 @@
 from keras import optimizers
-from keras.models import Model, Sequential
+from keras.models import Model
 from keras.layers import Activation, AveragePooling2D, Conv2D, Dense, Flatten, MaxPooling2D
 
 from dl.categorical import CategoricalParam
@@ -158,7 +158,7 @@ class FlattenLayer(Layer):
   def get_value(self):
     return Flatten()
 
-class SequentialLayer(Tunable):
+class ChainLayer(Tunable):
   def __init__(self, layers):
     self.layers = layers
 
@@ -183,7 +183,7 @@ class SequentialLayer(Tunable):
       input_tensor = layer.apply(input_tensor)
     return input_tensor
 
-class SequentialModel(Tunable):
+class FunctionalModel(Tunable):
   def __init__(self, inputs, layers):
     self.inputs = inputs
     self.layers = layers
@@ -195,10 +195,6 @@ class SequentialModel(Tunable):
     }
 
   def get_value(self):
-    #model = Sequential()
-    #for layer in self.layers:
-    #  layer.add_to_model(model)
-    #return model
     outputs = self.inputs
     for layer in self.layers:
       outputs = layer.apply(outputs)

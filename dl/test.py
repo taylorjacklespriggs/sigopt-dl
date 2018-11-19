@@ -5,7 +5,7 @@ from keras.layers import Input
 
 from dl.connection import Connection
 from dl.constant import Constant
-from dl.keras import activation_param, Compiler, ConvLayer, DenseLayer, FlattenLayer, learning_rate_param, PoolLayer, RepeatedLayer, SequentialModel, SequentialLayer
+from dl.keras import activation_param, ChainLayer, Compiler, ConvLayer, DenseLayer, FlattenLayer, FunctionalModel, learning_rate_param, PoolLayer, RepeatedLayer
 from dl.integer import IntegerParam
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -22,7 +22,7 @@ y_test = keras.utils.to_categorical(y_test, num_classes=10)
 if __name__ == '__main__':
 
   convolutions = RepeatedLayer(
-    layer=SequentialLayer([
+    layer=ChainLayer([
       ConvLayer(
         filters_param=IntegerParam(64, 8, 128),
         kernel_size_param=IntegerParam(3, 1, 5),
@@ -38,7 +38,7 @@ if __name__ == '__main__':
     count_param=IntegerParam(2, 1, 4),
   )
 
-  model = SequentialModel(inputs=Input(shape=(28, 28, 1)), layers=[
+  model = FunctionalModel(inputs=Input(shape=(28, 28, 1)), layers=[
     convolutions,
     FlattenLayer(),
     fully_connected,
