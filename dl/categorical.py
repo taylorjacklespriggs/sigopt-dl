@@ -6,6 +6,7 @@ class CategoricalParam(Param):
   def __init__(self, default_value, choices):
     super().__init__(default_value)
     self.choices = [self.validate_type(choice) for choice in choices]
+    assert self.default_value in self.choices
 
   def get_param_body(self):
     return {
