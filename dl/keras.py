@@ -38,7 +38,6 @@ def learning_rate_param(log_default, log_minimum, log_maximum):
 
 class Layer(Tunable):
   def add_to_model(self, model):
-    print(self.value)
     model.add(self.value)
 
   def apply(self, input_tensor):
