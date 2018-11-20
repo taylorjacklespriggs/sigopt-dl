@@ -30,8 +30,6 @@ class Experiment(object):
     )
 
   def reset_context(self):
-    if self.root_context:
-      self.root_context.expire()
     self.root_context = Root()
     self.contexts = {
       name: self.root_context.create_context(name, tunable)
