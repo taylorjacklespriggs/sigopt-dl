@@ -1,24 +1,17 @@
 from dl.param import Param
 
+def get_full_path(path):
+  return ':'.join(path)
+
 class Root(object):
   def __init__(self):
-    self.current = True
     self.suggestion = None
-
-  def is_current(self):
-    return self.current
-
-  def expire(self):
-    self.current = False
-
-  def get_full_path(self, path):
-    return ':'.join(path)
 
   def create_context(self, name, tunable):
     return Context(self, [name], tunable)
 
   def get_assignment(self, path, default):
-    return self.suggestion.assignments.get(self.get_full_path(path), default)
+    return self.suggestion.assignments.get(get_full_path(path), default)
 
 class Context(object):
   NO_VALUE = object()
@@ -27,7 +20,6 @@ class Context(object):
     self.root = root
     self.path = path
     self.tunable = tunable
-    self.tunable.set_context(self)
     sub_tunables = tunable.get_tunables()
     if sub_tunables is None:
       self.sub_contexts = None
@@ -38,9 +30,10 @@ class Context(object):
         in sub_tunables.items()
       }
     self.value = self.NO_VALUE
+    self.fetched_value = False
 
-  def is_current(self):
-    return self.root.is_current()
+  def __getitem__(self, item):
+    return self.sub_contexts[item].get_value()
 
   def is_param(self):
     return isinstance(self.tunable, Param)
@@ -48,7 +41,7 @@ class Context(object):
   def get_experiment_params(self):
     return [
       {
-        'name': self.root.get_full_path(path),
+        'name': get_full_path(path),
         **param,
       }
       for path, param in self.get_experiment_param_body()
@@ -61,18 +54,12 @@ class Context(object):
       for name, sub_context in self.sub_contexts.items():
         yield from sub_context.get_experiment_param_body()
 
-  def apply_context(self):
-    self.tunable.set_context(self)
-    if self.sub_contexts:
-      for context in self.sub_contexts.values():
-        context.apply_context()
+  def get_assignment(self):
+    return self.root.get_assignment(self.path, self.tunable.default_value)
 
   def get_value(self):
-    assert self.root.is_current(), 'Context is stale'
     if self.value is self.NO_VALUE:
-      if self.is_param():
-        self.value = self.root.get_assignment(self.path, self.tunable.default_value)
-      else:
-        self.apply_context()
-        self.value = self.tunable.get_value()
+      assert not self.fetched_value, "Called get_value on Context recursively!"
+      self.fetched_value = True
+      self.value = self.tunable.get_value(self)
     return self.value

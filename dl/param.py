@@ -11,6 +11,9 @@ class Param(Tunable):
   def get_tunables(self):
     return None
 
+  def get_value(self, context):
+    return context.get_assignment()
+
   @classmethod
   def validate_type(cls, value):
     assert isinstance(value, cls.validation_type)

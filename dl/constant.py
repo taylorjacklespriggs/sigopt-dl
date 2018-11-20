@@ -7,5 +7,5 @@ class Constant(Tunable):
   def get_tunables(self):
     return {}
 
-  def get_value(self):
+  def get_value(self, context):
     return self._value
