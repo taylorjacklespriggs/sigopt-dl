@@ -8,11 +8,11 @@ class Connection(object):
   def __init__(self, api_token=None):
     self.conn = sigopt.Connection(api_token)
 
-  def create_experiment(self, name, budget, tunables):
-    return Experiment(self.conn, name, budget, tunables)
+  def create_experiment(self, name, budget, tunables, extra):
+    return Experiment(self.conn, name, budget, tunables, extra)
 
 class Experiment(object):
-  def __init__(self, conn, name, budget, tunables):
+  def __init__(self, conn, name, budget, tunables, extra):
     self.tunables = tunables
     self.root_context = None
     self.contexts = None
@@ -27,6 +27,7 @@ class Experiment(object):
       name=name,
       observation_budget=budget,
       parameters=parameters,
+      **extra,
     )
 
   def reset_context(self):
@@ -42,7 +43,7 @@ class Experiment(object):
     self.root_context.suggestion = suggestion
     value = None
     try:
-      value = fcn({name: context.get_value() for name, context in self.contexts.items()})
+      value = fcn({name: context.get_value() for name, context in self.contexts.items()}, suggestion)
     except Exception as e:
       print(e)
       pass
@@ -59,7 +60,7 @@ class Experiment(object):
 
   def check_experiment_progress(self):
     self.experiment = self.conn.experiments(self.experiment.id).fetch()
-    return self.experiment.observation_budget > self.experiment.progress.observation_count
+    return self.experiment.progress.observation_budget_consumed < self.experiment.observation_budget
 
   def loop(self, fcn):
     while self.check_experiment_progress():

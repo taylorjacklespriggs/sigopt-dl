@@ -35,14 +35,14 @@ if __name__ == '__main__':
   convolutions = ChainLayer(
     RepeatedTunable(
       tunable=conv_block,
-      count_param=IntegerParam(2, 1, 3),
+      count_param=IntegerParam(2, 0, 3),
     )
   )
 
   fully_connected = ChainLayer(
     RepeatedTunable(
       tunable=DenseLayer(nodes_param=IntegerParam(256, 10, 784), activation_param=activation_param('tanh')),
-      count_param=IntegerParam(2, 1, 4),
+      count_param=IntegerParam(2, 0, 3),
     )
   )
 
@@ -67,14 +67,24 @@ if __name__ == '__main__':
     budget=100,
     tunables={
       'compiled_model': compiled_model,
-      'epochs': IntegerParam(4, 1, 12),
       'batch_size': IntegerParam(100, 10, 1000),
     },
+    extra={
+      'tasks': [
+        {
+          'name': f'{x} epochs',
+          'cost': x / 2**4,
+        }
+          for x in (
+            2**i for i in range(5)
+          )
+      ],
+    }
   )
-  def evaluate(components):
+  def evaluate(components, suggestion):
     model = components['compiled_model']
-    epochs = components['epochs']
     batch_size = components['batch_size']
+    epochs = int(suggestion.task.cost * 2**4)
     model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
     return model.evaluate(x_test, y_test)[1]
   experiment.loop(evaluate)
