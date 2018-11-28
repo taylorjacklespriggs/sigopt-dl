@@ -77,7 +77,6 @@ class ConvLayer(Layer):
     self.filters_param = filters_param
     self.kernel_size_param = kernel_size_param
     self.activation_param = activation_param
-    self.first = False
 
   def get_tunables(self):
     tunables = {

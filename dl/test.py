@@ -1,90 +1,89 @@
 import json
 import keras
-from keras.datasets import mnist
-from keras.layers import Input
+#from keras.datasets import mnist as dataset
+from keras.datasets import cifar10 as dataset
+from keras.layers import Conv2D, Dense, Flatten, Input, MaxPooling2D
+from keras.models import Model
+from keras.optimizers import Adam
 
 from dl.connection import Connection
 from dl.constant import Constant
-from dl.keras import activation_param, ChainLayer, Compiler, ConvLayer, DenseLayer, FlattenLayer, learning_rate_param, PoolLayer
+from dl.keras import activation_param, learning_rate_param
 from dl.integer import IntegerParam
 from dl.list import ListTunable
-from dl.repeated import RepeatedTunable
+from dl.repeated import repeat
+from dl.tune import tune
 
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
+(x_train, y_train), (x_test, y_test) = dataset.load_data()
+num_classes = 10
 
-x_train = x_train.reshape(x_train.shape[0], 28, 28, 1)
 x_train = x_train.astype('float32') / 255
 
-x_test = x_test.reshape(x_test.shape[0], 28, 28, 1)
 x_test = x_test.astype('float32') / 255
 
-y_train = keras.utils.to_categorical(y_train, num_classes=10)
-y_test = keras.utils.to_categorical(y_test, num_classes=10)
+y_train = keras.utils.to_categorical(y_train, num_classes=num_classes)
+y_test = keras.utils.to_categorical(y_test, num_classes=num_classes)
+
+@tune(
+  filters=IntegerParam(64, 8, 128),
+  kernel_size=IntegerParam(3, 1, 5),
+  activation=activation_param('relu'),
+  pool_size=IntegerParam(2, 1, 4),
+)
+def conv_block(inputs, filters, kernel_size, activation, pool_size):
+  conv_part = Conv2D(filters=filters, kernel_size=kernel_size, activation=activation)(inputs)
+  return MaxPooling2D(pool_size=pool_size)(conv_part)
+
+@tune(
+  units=IntegerParam(64, 16, 1024),
+  activation=activation_param('tanh'),
+)
+def dense_layer(inputs, units, activation):
+  return Dense(units=units, activation=activation)(inputs)
+
+def chain(funcs, inputs):
+  for func in funcs:
+    inputs = func(inputs)
+  return inputs
+
+@tune(
+  conv_layers=repeat(conv_block, IntegerParam(2, 0, 4)),
+  dense_layers=repeat(dense_layer, IntegerParam(2, 0, 4)),
+)
+def complete_net(inputs, conv_layers, dense_layers):
+  conv_output = chain(conv_layers, inputs)
+
+  flat = Flatten()(conv_output)
+
+  dense_output = chain(dense_layers, flat)
+
+  return Dense(units=10, activation='softmax')(dense_output)
+
+@tune(
+  net=complete_net,
+  learning_rate=learning_rate_param(log_default=-3, log_minimum=-6, log_maximum=0),
+  batch_size=IntegerParam(100, 10, 1000),
+  epochs=IntegerParam(4, 1, 16),
+)
+def train_model(net, learning_rate, batch_size, epochs):
+  inputs = Input(shape=(x_train.shape[1:]))
+  outputs = net(inputs)
+  model = Model(inputs=inputs, outputs=outputs)
+  model.compile(Adam(lr=learning_rate), loss='categorical_crossentropy', metrics=['accuracy'])
+  model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
+  return model
+
+def evaluate_model(model):
+  return model.evaluate(x_test, y_test)[1]
 
 if __name__ == '__main__':
-
-  conv_block = ChainLayer([
-    ConvLayer(
-      filters_param=IntegerParam(64, 8, 128),
-      kernel_size_param=IntegerParam(3, 1, 5),
-      activation_param=activation_param('relu'),
-    ),
-    PoolLayer(),
-  ])
-
-  convolutions = ChainLayer(
-    RepeatedTunable(
-      tunable=conv_block,
-      count_param=IntegerParam(2, 0, 3),
-    )
-  )
-
-  fully_connected = ChainLayer(
-    RepeatedTunable(
-      tunable=DenseLayer(nodes_param=IntegerParam(256, 10, 784), activation_param=activation_param('tanh')),
-      count_param=IntegerParam(2, 0, 3),
-    )
-  )
-
-  model = ChainLayer([
-    convolutions,
-    FlattenLayer(),
-    fully_connected,
-    DenseLayer(nodes_param=Constant(10), activation_param=Constant('softmax')),
-  ])
-
-  compiled_model = Compiler(
-    inputs=Input(shape=(28, 28, 1)),
-    outputs=model,
-    learning_rate_param=learning_rate_param(log_default=-3, log_minimum=-6, log_maximum=0),
-  )
-
   api_token = '***'
   dev_token = '***'
   connection = Connection(api_token)
   experiment = connection.create_experiment(
-    name='mlp',
+    name=f'alexnet:{dataset.__name__}',
     budget=100,
-    tunables={
-      'compiled_model': compiled_model,
-      'batch_size': IntegerParam(100, 10, 1000),
-    },
-    extra={
-      'tasks': [
-        {
-          'name': f'{x} epochs',
-          'cost': x / 2**4,
-        }
-          for x in (
-            2**i for i in range(5)
-          )
-      ],
-    }
+    tunable=train_model,
+    evaluator=evaluate_model,
   )
-  def evaluate(components, suggestion):
-    model = components['compiled_model']
-    batch_size = components['batch_size']
-    epochs = int(suggestion.task.cost * 2**4)
-    model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
-    return model.evaluate(x_test, y_test)[1]
-  experiment.loop(evaluate)
+  experiment.loop()

@@ -16,3 +16,6 @@ class RepeatedTunable(Tunable):
       context['tunable']
       for _ in range(context['count'])
     ]
+
+def repeat(tunable, count_param):
+  return RepeatedTunable(tunable, count_param)

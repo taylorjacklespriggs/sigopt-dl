@@ -55,3 +55,9 @@ class Context(object):
 
   def get_value(self):
     return self.tunable.get_value(self)
+
+  def get_args(self, tunable_args):
+    return tuple(self[i] for i, _ in enumerate(tunable_args))
+
+  def get_kwargs(self, tunable_kwargs):
+    return {kw: self[kw] for kw in tunable_kwargs}
